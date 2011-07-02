@@ -59,7 +59,8 @@ ereg_replacements = {
     "==([^=]+)==" : "<h2>\\1</h2>",
     "\\[\\[([^]^ ]+) ([^]]*)\\]\\]" : "<a href=\"\\1\">\\2</a>",
     "\\[\\[([^]^ ]+)\\]\\]" : "<a href=\"\\1\">\\1</a>",
-    "\\[img=([^,]+),([^,]*),([^,]*),([^,]*),([^]]*)\\]" : "<img src=images/\\1 width=\\2 height=\\3 align=\\4 hspace=5 vspace=5 title=\"\\5\" alt=\"\\5\">"
+    #"\\[img=([^,]+),([^,]*),([^,]*),([^,]*),([^]]*)\\]" : "<img src=\\1 width=\\2 height=\\3 align=\\4 hspace=5 vspace=5 title=\"\\5\" alt=\"\\5\">"
+    "\\[img=([^,]+),([^,]*),([^,]*),([^,]*),([^]]*)\\]" : "[caption align=\"align\\4\" width=\"\\2\" caption=\"\\5\"]<img src=\"\\1\" alt=\"\\5\" title=\"\\5\" width=\"\\2\" height=\"\\3\" class=\"size-full\" /></a>[/caption]"
 }
 
 str_replacements = {
@@ -72,20 +73,24 @@ str_replacements = {
     "align= " : " "
 }
 
-def replaceTags(input):
+def replaceTags(images, input):
     text = input
     for regex, replace in ereg_replacements.iteritems():
         text = re.sub(regex, replace, text)
 
     for search, replace in str_replacements.iteritems():
         text = text.replace(search, replace)
+
+    for img, url in images.iteritems():
+        text = text.replace('src="' + img + '"', 'src="' + url + '"')
+
     return text
         
 def nl2br(input):
     return input.replace("\n", "<br />\n")
 
-def encodeContent(content, abstract) :
-    return replaceTags(nl2br(abstract)) + "\n<!--more-->\n" + replaceTags(nl2br(content))
+def encodeContent(images, content, abstract) :
+    return replaceTags(images, nl2br(abstract)) + "\n<!--more-->\n" + replaceTags(images, nl2br(content))
 
 def convertImages(input):
     images = []
@@ -98,8 +103,7 @@ def convertImages(input):
         res = conn.getresponse()
         if res.status == 200:
             data = res.read()
-            encoded = base64.encodestring(data)
-            yield (img[0], encoded)
+            yield (img[0], xmlrpclib.Binary(data))
         else:
           print str(res.status)
 
@@ -109,6 +113,14 @@ def convertPosts() :
     conn = db.connect(user=options['my_user'], password=options['my_password'], db=options['my_db'])
     cursor = conn.cursor()
 
+    image_map = { }
+
+    def uploadImage(name, data):
+        media_object = {'name' : name, 'bits' : data, 'type' : 'image/gif' }
+        up = server.wp.uploadFile(wp_blogid, options['wp_user'], options['wp_password'], media_object)
+        image_map[name] = up['url']
+ 
+    # convert categories
     categories = {}
     cursor.execute("SELECT * FROM rubrik WHERE webseite_id=2")
     for row in cursor:
@@ -117,8 +129,11 @@ def convertPosts() :
         cat_data = {'name': row[1], 'slug' : '', 'description': '', 'parent_id' : 0}
         server.wp.newCategory(wp_blogid, options['wp_user'], options['wp_password'], cat_data)
 
+    # convert blog posts
     cursor.execute("SELECT * FROM inhalt WHERE webseite_id=2 AND pagetyp_id=3")
+    
     for row in cursor:
+        image_map = { }
         print "Converting Blog post: " + row[1]
         
         cat = [categories[row[5]]]        
@@ -128,25 +143,19 @@ def convertPosts() :
         title = row[1]
  
         for name, data in convertImages(row[13]):
-            print "Uploading " + name
-            media_object = {'name' : name, 'bits' : data }
-            up = server.wp.uploadFile(wp_blogid, options['wp_user'], options['wp_password'], media_object)
-            print up['url']
+            uploadImage(name, data)
 
         for name, data in convertImages(row[11]):
-            print "Uploading " + name
-            media_object = {'name' : name, 'bits' : data }
-            up = server.wp.uploadFile(wp_blogid, options['wp_user'], options['wp_password'], media_object)
-            print up['url']
-
-        content = encodeContent(row[13], row[11])
+            uploadImage(name, data)
+ 
+        content = encodeContent(image_map, row[13], row[11])
         date_created = row[7]
         tags = row[12]
         print "Keywords: " + tags
 
         data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags, 'wp_slug' : row[2]}
         
-        #post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
+        post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
         print "Done."
 
 if __name__ == "__main__":
