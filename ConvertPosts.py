@@ -52,6 +52,9 @@ def main(argv):
 def usage ():
     print "ConvertPosts --wp_user=username --wp_password=password --wp_url=url"
 
+def encodeContent(content, abstract) :
+    return abstract + "\n<!--more-->\n" + content
+
 def convertPosts() :
     wp_blogid=''
     server = xmlrpclib.ServerProxy(options['wp_url'])
@@ -75,14 +78,15 @@ def convertPosts() :
         status_published = 1
 
         title = row[1]
-        content = row[13]
+        content = encodeContent(row[13], row[11])
         date_created = row[7]
         tags = row[12]
         print "Keywords: " + tags
 
-        data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags}
+        data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags }
         
         post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
+        print "Done."
 
 if __name__ == "__main__":
     main(sys.argv[1:])
