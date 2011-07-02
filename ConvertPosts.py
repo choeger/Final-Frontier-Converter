@@ -1,40 +1,51 @@
+# final-frontier.ch -> wordpress conversion tools
+# <choeger@umpa-net.de>
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+
 import sys, datetime, xmlrpclib, getopt
 
 def main(argv):
     try:                                
-        opts, args = getopt.getopt(argv, "hp:u:w:", ["help", "user=", "password=", "wordpress="])
+        opts, args = getopt.getopt(argv, "h", ["help", "wp_user=", "wp_password=", "wp_url=", "my_user=", "my_password="])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
     
-    wp_url = "http://localhosT/wordpress/xmlrpc.php"    
-    wp_user = wp_passwd = None
-
+    # default and required options
+    options = { 'wp_url' : "http://localhost/wordpress/xmlrpc.php",
+                'wp_user' : None, 'wp_password' : None,
+                'my_user' : None, 'my_password' : None,
+                }
+    
     for opt in opts:
-        if opt[0] == '-h':
+        if opt[0] == '-h' or opt[0] == '--help':
             usage()
             sys.exit(0)
-        if opt[0] == '-u':
-            wp_user=opt[1]
-        if opt[0] == '-p':
-            wp_passwd=opt[1]
-        if opt[0] == '-w':
-            wp_url=opt[1]
-            
-    if wp_user == None:
-        print "Need user argument!"
-        usage()
-        sys.exit(2)
+        else: 
+            options[opt[0][2:]] = opt[1]
 
-    if wp_passwd == None:
-        print "Need password argument!"
-        usage()
-        sys.exit(2)
+    for k,v in options.iteritems():
+        if v == None:
+            print "Option " + k + " is required!"
+            sys.exit(2)
 
-    do_post(wp_url, wp_user, wp_passwd)
+    do_post(options['wp_url'], options['wp_user'], options['wp_password'])
 
 def usage ():
-    print "ConvertPosts -u username -p password -w url"
+    print "ConvertPosts --wp_user=username --wp_password=password --wp_url=url"
 
 def do_post(wp_url, wp_user, wp_pass):
     wp_blogid=''
