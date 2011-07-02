@@ -20,6 +20,7 @@
 
 import sys, datetime, xmlrpclib, getopt, re
 import mysql.connector as db
+import httplib, base64
 
 # default and required options
 options = { 'wp_url' : "http://localhost/wordpress/xmlrpc.php",
@@ -86,6 +87,22 @@ def nl2br(input):
 def encodeContent(content, abstract) :
     return replaceTags(nl2br(abstract)) + "\n<!--more-->\n" + replaceTags(nl2br(content))
 
+def convertImages(input):
+    images = []
+    conn = httplib.HTTPConnection("www.final-frontier.ch")
+    
+    for img in re.findall("\\[img=([^,]+),([^,]*),([^,]*),([^,]*),([^]]*)\\]", input):
+        loc = "/images/" + img[0]
+        print "GET " + loc
+        conn.request("GET", loc)
+        res = conn.getresponse()
+        if res.status == 200:
+            data = res.read()
+            encoded = base64.encodestring(data)
+            yield (img[0], encoded)
+        else:
+          print str(res.status)
+
 def convertPosts() :
     wp_blogid=''
     server = xmlrpclib.ServerProxy(options['wp_url'])
@@ -109,6 +126,19 @@ def convertPosts() :
         status_published = 1
 
         title = row[1]
+ 
+        for name, data in convertImages(row[13]):
+            print "Uploading " + name
+            media_object = {'name' : name, 'bits' : data }
+            up = server.wp.uploadFile(wp_blogid, options['wp_user'], options['wp_password'], media_object)
+            print up['url']
+
+        for name, data in convertImages(row[11]):
+            print "Uploading " + name
+            media_object = {'name' : name, 'bits' : data }
+            up = server.wp.uploadFile(wp_blogid, options['wp_user'], options['wp_password'], media_object)
+            print up['url']
+
         content = encodeContent(row[13], row[11])
         date_created = row[7]
         tags = row[12]
@@ -116,7 +146,7 @@ def convertPosts() :
 
         data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags, 'wp_slug' : row[2]}
         
-        post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
+        #post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
         print "Done."
 
 if __name__ == "__main__":
