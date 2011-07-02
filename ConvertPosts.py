@@ -108,7 +108,7 @@ def convertImages(input):
           print str(res.status)
 
 def convertPosts() :
-    wp_blogid=''
+    wp_blogid=0
     server = xmlrpclib.ServerProxy(options['wp_url'])
     conn = db.connect(user=options['my_user'], password=options['my_password'], db=options['my_db'])
     cursor = conn.cursor()
@@ -130,9 +130,9 @@ def convertPosts() :
         server.wp.newCategory(wp_blogid, options['wp_user'], options['wp_password'], cat_data)
 
     # convert blog posts
-    cursor.execute("SELECT * FROM inhalt WHERE webseite_id=2 AND pagetyp_id=3")
-    
-    for row in cursor:
+    cursor.execute("SELECT * FROM inhalt WHERE webseite_id=2 AND pagetyp_id=3")   
+    rows = cursor.fetchall()
+    for row in rows:
         image_map = { }
         print "Converting Blog post: " + row[1]
         
@@ -140,8 +140,8 @@ def convertPosts() :
         status_draft = 0
         status_published = 1
 
+        old_id = row[0]
         title = row[1]
- 
         for name, data in convertImages(row[13]):
             uploadImage(name, data)
 
@@ -156,7 +156,20 @@ def convertPosts() :
         data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags, 'wp_slug' : row[2]}
         
         post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
+        #convert comments
+        cursor.execute("SELECT * FROM kommentar WHERE bezug_id=" + str(old_id))
+        for comment in cursor:
+            author = comment[2]
+            url = comment[3]
+            comment = comment[4]
+            date = comment[5]
+            comment_data = {'comment_parent' : 0, 'author' : author, 'author_url' : url, 'comment' : content, 'date_created_gmt' : date}
+            print "Adding comment from " + author
+            comment_id = server.wp.newComment(wp_blogid, None, None, post_id, comment_data)
+
         print "Done."
+
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
