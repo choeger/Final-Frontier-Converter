@@ -18,7 +18,7 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-import sys, datetime, xmlrpclib, getopt 
+import sys, datetime, xmlrpclib, getopt, re
 import mysql.connector as db
 
 # default and required options
@@ -52,8 +52,39 @@ def main(argv):
 def usage ():
     print "ConvertPosts --wp_user=username --wp_password=password --wp_url=url"
 
+ereg_replacements = {
+    "\\[#=([^]]*)\\]" : "<a name=\"\\1\"></a>",
+    "===([^=]+)===" : "<h3>\\1</h3>",
+    "==([^=]+)==" : "<h2>\\1</h2>",
+    "\\[\\[([^]^ ]+) ([^]]*)\\]\\]" : "<a href=\"\\1\">\\2</a>",
+    "\\[\\[([^]^ ]+)\\]\\]" : "<a href=\"\\1\">\\1</a>",
+    "\\[img=([^,]+),([^,]*),([^,]*),([^,]*),([^]]*)\\]" : "<img src=images/\\1 width=\\2 height=\\3 align=\\4 hspace=5 vspace=5 title=\"\\5\" alt=\"\\5\">"
+}
+
+str_replacements = {
+    "width=," : "width=",
+    "height=," : "height=",
+    "align=," : "align=",
+    "alt=," : "alt=",
+    "width= " : " ",
+    "height= " : " ",
+    "align= " : " "
+}
+
+def replaceTags(input):
+    text = input
+    for regex, replace in ereg_replacements.iteritems():
+        text = re.sub(regex, replace, text)
+
+    for search, replace in str_replacements.iteritems():
+        text = text.replace(search, replace)
+    return text
+        
+def nl2br(input):
+    return input.replace("\n", "<br />\n")
+
 def encodeContent(content, abstract) :
-    return abstract + "\n<!--more-->\n" + content
+    return replaceTags(nl2br(abstract)) + "\n<!--more-->\n" + replaceTags(nl2br(content))
 
 def convertPosts() :
     wp_blogid=''
@@ -83,7 +114,7 @@ def convertPosts() :
         tags = row[12]
         print "Keywords: " + tags
 
-        data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags }
+        data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags, 'wp_slug' : row[2]}
         
         post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
         print "Done."
