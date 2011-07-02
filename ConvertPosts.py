@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 # final-frontier.ch -> wordpress conversion tools
 # <choeger@umpa-net.de>
 #
@@ -15,7 +18,15 @@
 #    along with this program; if not, write to the Free Software
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-import sys, datetime, xmlrpclib, getopt
+import sys, datetime, xmlrpclib, getopt 
+import mysql.connector as db
+
+# default and required options
+options = { 'wp_url' : "http://localhost/wordpress/xmlrpc.php",
+            'wp_user' : None, 'wp_password' : None,
+            'my_user' : None, 'my_password' : None,
+            'my_db' : 'final_frontier'
+            }
 
 def main(argv):
     try:                                
@@ -23,12 +34,6 @@ def main(argv):
     except getopt.GetoptError:
         usage()
         sys.exit(2)
-    
-    # default and required options
-    options = { 'wp_url' : "http://localhost/wordpress/xmlrpc.php",
-                'wp_user' : None, 'wp_password' : None,
-                'my_user' : None, 'my_password' : None,
-                }
     
     for opt in opts:
         if opt[0] == '-h' or opt[0] == '--help':
@@ -42,27 +47,42 @@ def main(argv):
             print "Option " + k + " is required!"
             sys.exit(2)
 
-    do_post(options['wp_url'], options['wp_user'], options['wp_password'])
+    convertPosts()
 
 def usage ():
     print "ConvertPosts --wp_user=username --wp_password=password --wp_url=url"
 
-def do_post(wp_url, wp_user, wp_pass):
+def convertPosts() :
     wp_blogid=''
-    status_draft = 0
-    status_published = 1
+    server = xmlrpclib.ServerProxy(options['wp_url'])
+    conn = db.connect(user=options['my_user'], password=options['my_password'], db=options['my_db'])
+    cursor = conn.cursor()
 
-    server = xmlrpclib.ServerProxy(wp_url)
+    categories = {}
+    cursor.execute("SELECT * FROM rubrik WHERE webseite_id=2")
+    for row in cursor:
+        print "Found category: " + row[1]
+        categories[row[0]] = row[1]
+        cat_data = {'name': row[1], 'slug' : '', 'description': '', 'parent_id' : 0}
+        server.wp.newCategory(wp_blogid, options['wp_user'], options['wp_password'], cat_data)
 
-    title = "Title with spaces III"
-    content = "<h1>Body</h1> with lots of <b>content</b>"
-    date_created = xmlrpclib.DateTime(datetime.datetime.strptime("1981-10-20 21:08", "%Y-%m-%d %H:%M"))
-    categories = ["somecategory"]
-    tags = ["sometag", "othertag"]
-    data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': categories, 'mt_keywords': tags}
+    cursor.execute("SELECT * FROM inhalt WHERE webseite_id=2 AND pagetyp_id=3")
+    for row in cursor:
+        print "Converting Blog post: " + row[1]
+        
+        cat = [categories[row[5]]]        
+        status_draft = 0
+        status_published = 1
 
-    post_id = server.metaWeblog.newPost(wp_blogid, wp_user, wp_pass, data, status_published)
+        title = row[1]
+        content = row[13]
+        date_created = row[7]
+        tags = row[12]
+        print "Keywords: " + tags
 
+        data = {'title': title, 'description': content, 'dateCreated': date_created, 'pubDate' : date_created, 'categories': cat, 'mt_keywords': tags}
+        
+        post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
