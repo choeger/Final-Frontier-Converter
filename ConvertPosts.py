@@ -158,18 +158,19 @@ def convertPosts() :
         post_id = server.metaWeblog.newPost(wp_blogid, options['wp_user'], options['wp_password'], data, status_published)
         #convert comments
         cursor.execute("SELECT * FROM kommentar WHERE bezug_id=" + str(old_id))
-        for comment in cursor:
+        comments=cursor.fetchall()
+        comment_nr = 0
+        for comment in comments:
+            comment_nr += 1
+            print "[" + str(comment_nr) + "/" + str(len(comments)) + "] Adding comment " + str(comment[0]) + " for post " + str(comment[1]) + " from " + comment[2] 
             author = comment[2]
             url = comment[3]
-            comment = comment[4]
+            content = comment[4]
             date = comment[5]
-            comment_data = {'comment_parent' : 0, 'author' : author, 'author_url' : url, 'comment' : content, 'date_created_gmt' : date}
-            print "Adding comment from " + author
-            comment_id = server.wp.newComment(wp_blogid, None, None, post_id, comment_data)
-
+            comment_data = {'comment_parent' : 0, 'author' : author, 'author_url' : url, 'content' : content, 'date_created_gmt' : date}
+            comment_id = server.wp.newComment(wp_blogid, options['wp_user'], options['wp_password'], post_id, comment_data)
+            server.wp.editComment(wp_blogid, options['wp_user'], options['wp_password'], comment_id, comment_data)
         print "Done."
-
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])
