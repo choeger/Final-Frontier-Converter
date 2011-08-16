@@ -25,13 +25,14 @@ import httplib, base64
 # default and required options
 options = { 'wp_url' : "http://localhost/wordpress/xmlrpc.php",
             'wp_user' : None, 'wp_password' : None,
+            'my_host' : "localhost",
             'my_user' : None, 'my_password' : None,
             'my_db' : 'final_frontier'
             }
 
 def main(argv):
     try:                                
-        opts, args = getopt.getopt(argv, "h", ["help", "wp_user=", "wp_password=", "wp_url=", "my_user=", "my_password="])
+        opts, args = getopt.getopt(argv, "h", ["help", "wp_user=", "wp_password=", "wp_url=", "my_user=", "my_password=", "my_host="])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -110,7 +111,7 @@ def convertImages(input):
 def convertPosts() :
     wp_blogid=0
     server = xmlrpclib.ServerProxy(options['wp_url'])
-    conn = db.connect(user=options['my_user'], password=options['my_password'], db=options['my_db'])
+    conn = db.connect(host=options['my_host'], user=options['my_user'], password=options['my_password'], db=options['my_db'])
     cursor = conn.cursor()
 
     image_map = { }
